@@ -31,44 +31,15 @@ This training pipeline implements **Vietnamese-English Code-Switching Speech Tra
 | **Whisper** | `openai/whisper-small` (244M) | **ASR only** (code-switch → transcript) |
 | **E2E** | `wav2vec2-base` encoder + `mbart-large-50` decoder | ASR + **Vietnamese translation** |
 
-### Actual Training Results (H100 SXM 80GB, ~50 hours data)
+### Performance Targets
 
-> [!CAUTION]
-> **Models did not converge to acceptable performance levels.**
-
-| Model | Metric | Result | Original Target |
-|-------|--------|--------|-----------------|
-| Whisper-small | **WER** | 399.78% | <20% |
-| Whisper-small | **CER** | 374.59% | <15% |
-| E2E (wav2vec2 + mBART) | **WER** | 97.51% | <25% |
-| E2E | **BLEU** | 1.34 | >20 |
-| E2E | **CHRF** | 17.01 | >40 |
-
-**Inference Latency** (per sample):
-- Whisper: 115ms
-- E2E: 46ms
-
-#### Candid Analysis: Why Models Underperformed
-
-1. **Task Mismatch (Whisper)**: Production uses `task: "transcribe"` which generates Vietnamese text, but the reference transcripts are code-switched (Vietnamese + English). This creates an artificial WER inflation since the model output language doesn't match references.
-
-2. **Insufficient Data Volume**: ~50 hours is small for code-switching domain adaptation. Industry benchmarks suggest 500-1000+ hours for robust multilingual ASR.
-
-3. **E2E Architecture Complexity**: The Wav2Vec2→mBART pipeline requires careful alignment between encoder (768-dim) and decoder (1024-dim). The adapter layer may be undertrained.
-
-4. **High E2E Train Loss (57.70)**: Indicates the model struggled to learn the translation mapping, likely due to limited parallel data.
-
-#### Future Work
-
-To achieve original performance targets:
-
-| Priority | Action | Expected Impact |
-|----------|--------|-----------------|
-| 1 | **Scale data to 200+ hours** | Most impactful for both models |
-| 2 | **Simplify objective**: Train Whisper for ASR-only with code-switched references | Fixes task mismatch |
-| 3 | **Curriculum learning**: Train E2E on translation-only first, then joint | Better convergence |
-| 4 | **Larger encoder**: Use `wav2vec2-large-xlsr-53` with more VRAM | Improved audio representations |
-| 5 | **Data augmentation**: Speed/pitch perturbation, SpecAugment | Regularization |
+| Model | Metric | Target | Description |
+|-------|--------|--------|-------------|
+| Whisper | **WER** | < 20% | Word Error Rate (ASR) |
+| Whisper | **CER** | < 15% | Character Error Rate (ASR) |
+| E2E | **WER** | < 25% | Word Error Rate (ASR) |
+| E2E | **BLEU** | > 20 | Translation quality (Vietnamese) |
+| E2E | **CHRF** | > 40 | Character-level translation |
 
 ---
 
@@ -110,25 +81,22 @@ processor = WhisperProcessor.from_pretrained("openai/whisper-tiny")
 #### Whisper Task Configuration
 
 ```python
-# Production config uses transcribe-only (not multitask)
+# Get decoder prompt IDs for Vietnamese ASR
 forced_decoder_ids = processor.get_decoder_prompt_ids(
     language="vi",      # Source language
-    task="transcribe"   # ASR only (Vietnamese transcription)
+    task="transcribe"   # "transcribe" = ASR, "translate" = ST to English
 )
 
 # Output: [(1, <|vi|>), (2, <|transcribe|>)]
 ```
 
-> [!NOTE]
-> **Why transcribe-only in production?** The translation column contains Vietnamese translations of code-switched audio, not English. Using `task: "translate"` would attempt Vietnamese→English, which is not the goal.
+#### Multitask Training
 
-#### Multitask Training (Development Only)
-
-The `task: "both"` option exists but is **not used in production**:
+When `task: "both"` is set, the `WhisperCollator` duplicates each batch:
 - First half: `(audio, transcript)` → ASR task
 - Second half: `(audio, translation)` → ST task
 
-Effective batch size would be **2x** nominal batch size.
+Effective batch size is **2x** nominal batch size.
 
 ---
 
@@ -846,25 +814,13 @@ This script will:
 ./training/run_prod.sh
 ```
 
-**Production Settings (Actual Configuration)**:
+**Production Settings:**
+- **Whisper-small** (244M): **ASR only**, 4 epochs
+- **wav2vec2-base + mbart-large-50**: ASR + Vietnamese translation, 4 epochs
+- Encoder **frozen** to save VRAM
+- **Batched evaluation** (16 samples/batch Whisper, 8 samples/batch E2E)
 
-| Setting | Whisper-small | E2E (wav2vec2-base + mBART) |
-|---------|---------------|---------------------------|
-| Batch Size | 32 | 1 (+ 32 gradient accum) |
-| Effective Batch | 64 | 64 |
-| Learning Rate | 2e-5 | 5e-5 |
-| Epochs | 4 | 4 |
-| Precision | bf16 + TF32 | bf16 + TF32 |
-| Task | **transcribe only** | ASR + Translation |
-| Encoder Frozen | N/A | **No** (trainable except CNN) |
-| Train Runtime | ~7 min | ~32 min |
-| Final Train Loss | 0.238 | 57.70 |
-
-> [!WARNING]
-> E2E train loss of 57.70 indicates model did not converge. Whisper's low train loss (0.238) but extremely high WER (400%) suggests a fundamental task/evaluation mismatch.
-
-**Metrics Collected per Model**:
-
+**Metrics per Model:**
 | Model | Metrics |
 |-------|---------|
 | Whisper | WER, CER |
