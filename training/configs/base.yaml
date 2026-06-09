@@ -1,0 +1,44 @@
+# =============================================================================
+# Base Configuration - Shared defaults for all training runs
+# =============================================================================
+
+# Paths
+paths:
+  data_root: "."
+  manifest_path: "data/export/manifest.tsv"
+  splits_dir: "data/splits"
+  output_dir: "training/outputs"
+
+# Audio settings
+audio:
+  sample_rate: 16000
+  max_length_seconds: 30
+
+# Training defaults
+training:
+  seed: 42
+  eval_strategy: "steps"
+  logging_steps: 50
+  save_total_limit: 3
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  report_to: "tensorboard"
+
+# DataLoader defaults
+dataloader:
+  num_workers: 4
+  pin_memory: true
+  prefetch_factor: 2
+
+# Logging
+logging:
+  log_to_file: true
+  log_to_tensorboard: true
+  log_level: "INFO"
+
+# Visualization
+visualization:
+  chart_dpi: 300
+  chart_format: "png"
+  save_charts: true

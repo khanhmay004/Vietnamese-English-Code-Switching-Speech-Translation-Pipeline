@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# VS Code
+.vscode/
+
+# Project Specific - Data Artifacts
+# Ignore large audio files and database, but keep the folder structure (handled by .gitkeep if needed, or just ignore contents)
+dataset/audio/**/*.wav
+dataset/db/*.db
+raw_staging/*
+exports/*.jsonl
+exports/*.zip
+
+# Logs
+*.log
+.secrets/
+
+# Docker / Database
+database_data/
+.env
+
+*.wav
+
+*.db
+*.sqlite3
+*.db-shm
+*.db-wal
+/data/
+frontend/node_modules/
+frontend/package-lock.json
+docs/*.html
+.hintrc
+frontend/.vite 
+
+# Training - Isolated environment and outputs
+training/.venv/
+training/.requirements_installed
+training/outputs/

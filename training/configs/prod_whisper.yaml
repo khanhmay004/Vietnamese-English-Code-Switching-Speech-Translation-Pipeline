@@ -1,0 +1,46 @@
+# =============================================================================
+# Production Config - Whisper (H100 SXM 80GB) - 2 HOUR CONSTRAINT
+# =============================================================================
+# Target: Complete in ~45 minutes
+
+# Model
+model:
+  name: "openai/whisper-small"  # 244M params (was medium 769M)
+  type: "whisper"
+  language: "vi"
+  task: "transcribe"  # ASR only (translations are Vietnamese, not English)
+
+# Training - Aggressive for speed
+training:
+  batch_size: 32  # With multitask (2x), effective = 64
+  gradient_accumulation_steps: 1  # No accumulation needed
+
+  learning_rate: 2.0e-5  # Slightly higher for faster convergence
+  lr_scheduler_type: "linear"
+  warmup_ratio: 0.05  # Shorter warmup
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  num_train_epochs: 4  # Increased from 2
+  max_steps: -1
+
+  bf16: true
+  gradient_checkpointing: false
+  tf32: true
+
+  eval_steps: 99999  # Skip eval during training (too slow)
+  save_steps: 99999  # Save only at end
+  logging_steps: 10
+
+# DataLoader - Maximize throughput
+dataloader:
+  num_workers: 16
+  pin_memory: true
+  prefetch_factor: 4
+  persistent_workers: true
+
+# Output
+output:
+  dir: "training/outputs/prod_whisper"
+  experiment_name: "whisper_small_prod"
+
